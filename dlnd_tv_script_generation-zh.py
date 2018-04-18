@@ -66,7 +66,7 @@ print('\n'.join(text.split('\n')[view_sentence_range[0]:view_sentence_range[1]])
 # 请在下面的元组中返回这些字典
 #  `(vocab_to_int, int_to_vocab)`
 
-# In[3]:
+# In[4]:
 
 
 import numpy as np
@@ -79,7 +79,8 @@ def create_lookup_tables(text):
     :return: A tuple of dicts (vocab_to_int, int_to_vocab)
     """
     # TODO: Implement Function
-    vocab = sorted(set(text))
+    # vocab = sorted(set(text))
+    vocab = set(text)
     vocab_to_int = {c: i for i, c in enumerate(vocab)}
     int_to_vocab = dict(enumerate(vocab))
     return vocab_to_int, int_to_vocab
@@ -109,7 +110,7 @@ tests.test_create_lookup_tables(create_lookup_tables)
 # 
 # 这个字典将用于标记符号并在其周围添加分隔符（空格）。这能将符号视作单独词汇分割开来，并使神经网络更轻松地预测下一个词汇。请确保你并没有使用容易与词汇混淆的标记。与其使用 “dash” 这样的标记，试试使用“||dash||”。
 
-# In[4]:
+# In[5]:
 
 
 def token_lookup():
@@ -118,8 +119,7 @@ def token_lookup():
     :return: Tokenize dictionary where the key is the punctuation and the value is the token
     """
     # TODO: Implement Function
-    #from string import punctuation
-    #dict_token = {c: '||'+c+'||' for i, c in enumerate(sorted(set(punctuation)))}
+
     dict_token = {'.': '||Period||',
                   ',': '||Comma||',
                   '"': '||Quotation_Mark||',
@@ -142,7 +142,7 @@ tests.test_tokenize(token_lookup)
 # ## 预处理并保存所有数据
 # 运行以下代码将预处理所有数据，并将它们保存至文件。
 
-# In[5]:
+# In[6]:
 
 
 """
@@ -155,7 +155,7 @@ helper.preprocess_and_save_data(data_dir, token_lookup, create_lookup_tables)
 # # 检查点
 # 这是你遇到的第一个检点。如果你想要回到这个 notebook，或需要重新打开 notebook，你都可以从这里开始。预处理的数据都已经保存完毕。
 
-# In[6]:
+# In[7]:
 
 
 """
@@ -180,7 +180,7 @@ int_text, vocab_to_int, int_to_vocab, token_dict = helper.load_preprocess()
 # 
 # ### 检查 TensorFlow 版本并访问 GPU
 
-# In[7]:
+# In[8]:
 
 
 """
@@ -211,7 +211,7 @@ else:
 # 
 # 返回下列元组中的占位符 `(Input, Targets, LearningRate)`
 
-# In[8]:
+# In[9]:
 
 
 def get_inputs():
@@ -222,8 +222,8 @@ def get_inputs():
     # TODO: Implement Function
     inputs = tf.placeholder(tf.int32, [None, None], name='input')
     targets = tf.placeholder(tf.int32, [None, None],  name='targets')
-    learningRate = tf.placeholder(tf.float32, shape=None, name='lr')
-    return inputs, targets, learningRate
+    learning_rate = tf.placeholder(tf.float32, shape=None, name='lr')
+    return inputs, targets, learning_rate
 
 
 """
@@ -243,7 +243,7 @@ tests.test_get_inputs(get_inputs)
 # 
 # 返回 cell 和下列元组中的初始状态 `(Cell, InitialState)`
 
-# In[17]:
+# In[10]:
 
 
 def get_init_cell(batch_size, rnn_size):
@@ -255,11 +255,12 @@ def get_init_cell(batch_size, rnn_size):
     """
     
     # TODO: Implement Function
-    # solve the problem: BasicLSTMCell zero_state() raise error in TF1.3
-    # 高于tf1.0，后续代码有问题，待解决
-    # batch_size = tf.placeholder(tf.int32, [], name='batch_size')
-    lstm_size = tf.contrib.rnn.BasicLSTMCell(rnn_size)
-    cell = tf.contrib.rnn.MultiRNNCell([lstm_size])
+    n_layers = 2
+    def make_lstm(rnn_size):
+        return tf.contrib.rnn.BasicLSTMCell(rnn_size)
+    cell = tf.contrib.rnn.MultiRNNCell([make_lstm(rnn_size) for _ in range(n_layers)])
+    # lstm_size = tf.contrib.rnn.BasicLSTMCell(rnn_size)
+    # cell = tf.contrib.rnn.MultiRNNCell([lstm_size])
     initial_state = cell.zero_state(batch_size, tf.float32)
     initial_state = tf.identity(initial_state, name='initial_state')
     return cell, initial_state
@@ -276,7 +277,7 @@ tests.test_get_init_cell(get_init_cell)
 # 使用 TensorFlow 将嵌入运用到 `input_data` 中。
 # 返回嵌入序列。
 
-# In[18]:
+# In[11]:
 
 
 def get_embed(input_data, vocab_size, embed_dim):
@@ -308,7 +309,7 @@ tests.test_get_embed(get_embed)
 # 
 # 返回下列元组中的输出和最终状态`(Outputs, FinalState)`
 
-# In[19]:
+# In[12]:
 
 
 def build_rnn(cell, inputs):
@@ -339,7 +340,7 @@ tests.test_build_rnn(build_rnn)
 # 
 # 返回下列元组中的 logit 和最终状态 `Logits, FinalState`
 
-# In[20]:
+# In[13]:
 
 
 def build_nn(cell, rnn_size, input_data, vocab_size, embed_dim):
@@ -399,7 +400,7 @@ tests.test_build_nn(build_nn)
 ]
 
 
-# In[21]:
+# In[14]:
 
 
 def get_batches(int_text, batch_size, seq_length):
@@ -416,11 +417,16 @@ def get_batches(int_text, batch_size, seq_length):
     int_text_i = np.array(int_text[:n_batches * (batch_size * seq_length)])
     int_text_j = np.array(int_text[1:n_batches * (batch_size * seq_length) + 1])
 
-    x_batch = np.split(int_text_i, n_batches)
-    y_batch = np.split(int_text_j, n_batches)
+    # x_batch = np.split(int_text_i, n_batches)
+    # y_batch = np.split(int_text_j, n_batches)
+    x_batch = np.array(int_text_i).reshape((batch_size, -1))
+    y_batch = np.array(int_text_j).reshape((batch_size, -1))
     for i in range(n_batches):
-        a = np.split(x_batch[i], batch_size)
-        b = np.split(y_batch[i], batch_size)
+        # a = np.split(x_batch[i], batch_size)
+        # b = np.split(y_batch[i], batch_size)
+        start = i * seq_length
+        a = x_batch[:, start: start + seq_length]
+        b = y_batch[:, start: start + seq_length]
         n_stack = np.stack((a, b), axis=0)
         batches.append(n_stack)
 
@@ -431,6 +437,22 @@ def get_batches(int_text, batch_size, seq_length):
 DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
 """
 tests.test_get_batches(get_batches)
+
+
+# In[16]:
+
+
+def get_batches1(int_text, batch_size, seq_length):
+    n_batches = int(len(int_text) / (batch_size * seq_length))
+    # Drop the last few characters to make only full batches
+    x_data = np.array(int_text[: n_batches * batch_size * seq_length])
+    y_data = np.array(int_text[1: n_batches * batch_size * seq_length + 1])
+
+    x_batches = np.split(x_data.reshape(batch_size, -1), n_batches, 1)
+    y_batches = np.split(y_data.reshape(batch_size, -1), n_batches, 1)
+    return np.array(list(zip(x_batches, y_batches)))
+
+tests.test_get_batches(get_batches1)
 
 
 # ## 神经网络训练
@@ -445,23 +467,23 @@ tests.test_get_batches(get_batches)
 # - 将 `learning_rate` 设置为学习率。
 # - 将 `show_every_n_batches` 设置为神经网络应输出的程序组数量。
 
-# In[28]:
+# In[20]:
 
 
 # Number of Epochs
-num_epochs = 100
+num_epochs = 200
 # Batch Size
 batch_size = 128
 # RNN Size
-rnn_size = 256
+rnn_size = 512
 # Embedding Dimension Size
-embed_dim = 300
+embed_dim = 500
 # Sequence Length
-seq_length = 32
+seq_length = 11
 # Learning Rate
-learning_rate = 0.01
+learning_rate = 0.001
 # Show stats for every n number of batches
-show_every_n_batches = 100
+show_every_n_batches = 30
 
 """
 DON'T MODIFY ANYTHING IN THIS CELL THAT IS BELOW THIS LINE
@@ -472,7 +494,7 @@ save_dir = './save'
 # ### 创建图表
 # 使用你实现的神经网络创建图表。
 
-# In[29]:
+# In[21]:
 
 
 """
@@ -509,7 +531,7 @@ with train_graph.as_default():
 # ## 训练
 # 在预处理数据中训练神经网络。如果你遇到困难，请查看这个[表格](https://discussions.udacity.com/)，看看是否有人遇到了和你一样的问题。
 
-# In[30]:
+# In[22]:
 
 
 """
@@ -548,7 +570,7 @@ with tf.Session(graph=train_graph) as sess:
 # ## 储存参数
 # 储存 `seq_length` 和 `save_dir` 来生成新的电视剧剧本。
 
-# In[31]:
+# In[23]:
 
 
 """
@@ -560,7 +582,7 @@ helper.save_params((seq_length, save_dir))
 
 # # 检查点
 
-# In[32]:
+# In[24]:
 
 
 """
@@ -586,7 +608,7 @@ seq_length, load_dir = helper.load_params()
 # 
 # 返回下列元组中的 tensor `(InputTensor, InitialStateTensor, FinalStateTensor, ProbsTensor)`
 
-# In[33]:
+# In[25]:
 
 
 def get_tensors(loaded_graph):
@@ -612,7 +634,7 @@ tests.test_get_tensors(get_tensors)
 # ### 选择词汇
 # 实现 `pick_word()` 函数来使用 `probabilities` 选择下一个词汇。
 
-# In[34]:
+# In[26]:
 
 
 def pick_word(probabilities, int_to_vocab):
@@ -623,7 +645,8 @@ def pick_word(probabilities, int_to_vocab):
     :return: String of the predicted word
     """
     # TODO: Implement Function
-    pred_word = int_to_vocab[np.argmax(probabilities)]
+    # pred_word = int_to_vocab[np.argmax(probabilities)]
+    pred_word = np.random.choice(list(int_to_vocab.values()), 1, p=probabilities)[0]
     return pred_word
 
 
@@ -636,7 +659,7 @@ tests.test_pick_word(pick_word)
 # ## 生成电视剧剧本
 # 这将为你生成一个电视剧剧本。通过设置 `gen_length` 来调整你想生成的剧本长度。
 
-# In[35]:
+# In[30]:
 
 
 gen_length = 200
